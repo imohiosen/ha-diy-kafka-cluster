@@ -1,0 +1,223 @@
+version: '3.8'
+
+services:
+  zookeeper-1:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper-1
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_SERVER_ID: 1
+      ZOOKEEPER_SERVERS: zookeeper-1:2888:3888;zookeeper-2:2888:3888;zookeeper-3:2888:3888
+
+  zookeeper-2:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper-2
+    ports:
+      - "2182:2181" # Internal port should still be 2181
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181 # Internal port
+      ZOOKEEPER_SERVER_ID: 2
+      ZOOKEEPER_SERVERS: zookeeper-1:2888:3888;zookeeper-2:2888:3888;zookeeper-3:2888:3888
+
+  zookeeper-3:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper-3
+    ports:
+      - "2183:2181" # Internal port should still be 2181
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181 # Internal port
+      ZOOKEEPER_SERVER_ID: 3
+      ZOOKEEPER_SERVERS: zookeeper-1:2888:3888;zookeeper-2:2888:3888;zookeeper-3:2888:3888 # Fixed typo zoozookeeper-2
+
+  kafka-1:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka-1
+    ports:
+      - "9092:9092"
+      - "29092:29092" # Port 29092 is often used for internal docker network access, might not be needed externally
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181" # Use internal ZK ports
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT # DOCKER listener might be redundant depending on use case
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-1:19092,EXTERNAL://localhost:9092 # Use localhost or specific host IP if needed
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3 # Should match broker count for HA
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2 # Should be > 1 for HA
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3 # Should match broker count for HA
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+    volumes:
+      # Ensure the host directory /mnt/aachen-kafka-broker-1/kafka exists and
+      # is writable by the user running the Kafka process inside the container (often UID/GID 1000).
+      # On the host, run: sudo chown -R 1000:1000 /mnt/aachen-kafka-broker-1/kafka (replace 1000:1000 if needed)
+      - /mnt/aachen-kafka-broker-1/kafka:/var/lib/kafka/data
+  kafka-2:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka-2
+    ports:
+      - "9093:9093"
+      - "29093:29093"
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-2:19093,EXTERNAL://localhost:9093
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+
+    volumes:
+      # Ensure the host directory /mnt/aachen-kafka-broker-2/kafka exists and
+      # is writable by the user running the Kafka process inside the container (often UID/GID 1000).
+      # On the host, run: sudo chown -R 1000:1000 /mnt/aachen-kafka-broker-2/kafka (replace 1000:1000 if needed)
+      - /mnt/aachen-kafka-broker-2/kafka:/var/lib/kafka/data
+  kafka-3:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka-3
+    ports:
+      - "9094:9094"
+      - "29094:29094"
+    environment:
+      KAFKA_BROKER_ID: 3
+      KAFKA_ZOOKEEPER_CONNECT: "zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181"
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka-3:19094,EXTERNAL://localhost:9094
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 3
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 2
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 3
+    depends_on:
+      - zookeeper-1
+      - zookeeper-2
+      - zookeeper-3
+
+    volumes:
+      # Ensure the host directory /mnt/aachen-kafka-broker-3/kafka exists and
+      # is writable by the user running the Kafka process inside the container (often UID/GID 1000).
+      # On the host, run: sudo chown -R 1000:1000 /mnt/aachen-kafka-broker-3/kafka (replace 1000:1000 if needed)
+      - /mnt/aachen-kafka-broker-3/kafka:/var/lib/kafka/data
+  postgres:
+    image: postgres:15
+    container_name: postgres
+    environment:
+      POSTGRES_USER: <POSTGRES_USER>
+      POSTGRES_PASSWORD: <POSTGRES_PASSWORD>
+      POSTGRES_DB: <POSTGRES_DB>
+    ports:
+      - "5432:5432"
+    volumes:
+      # Ensure the host directory /mnt/koln/postgres exists and is writable by the postgres user inside the container (UID/GID 999 for official postgres image).
+      # On the host, run: sudo chown -R 999:999 /mnt/koln/postgres (or adjust based on the image)
+      - /mnt/koln/postgres:/var/lib/postgresql/data # Correct default path for postgres data
+    command: postgres -c wal_level=logical
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:6.2.0 # Consider updating to match Kafka/ZK version (e.g., :latest or 7.x.x)
+    container_name: schema-registry
+    ports:
+      - "8081:8081"
+    depends_on:
+      - kafka-1
+      - kafka-2
+      - kafka-3
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema-registry
+      SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS: "kafka-1:19092,kafka-2:19093,kafka-3:19094" # Use internal listeners
+      # If using SASL/SSL for Kafka, uncomment and configure these:
+      # SCHEMA_REGISTRY_KAFKASTORE_SECURITY_PROTOCOL: SASL_SSL
+      # SCHEMA_REGISTRY_KAFKASTORE_SASL_MECHANISM: PLAIN
+      # SCHEMA_REGISTRY_KAFKASTORE_SASL_JAAS_CONFIG: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="..." password="...";'
+      SCHEMA_REGISTRY_LISTENERS: http://0.0.0.0:8081
+
+  kafka-connect:
+      image: confluentinc/cp-kafka-connect-base:6.2.0 # Consider updating to match Kafka/ZK version
+      container_name: kafka-connect
+      depends_on:
+        - postgres
+        - schema-registry
+        - kafka-1 # Depend on at least one broker
+        - kafka-2
+        - kafka-3
+      ports:
+        - 8083:8083
+      environment:
+        CONNECT_BOOTSTRAP_SERVERS: "kafka-1:19092,kafka-2:19093,kafka-3:19094" # Use internal listeners
+        # If using SASL/SSL for Kafka, uncomment and configure these:
+        # CONNECT_SECURITY_PROTOCOL: SASL_SSL
+        # CONNECT_SASL_MECHANISM: PLAIN
+        # CONNECT_SASL_JAAS_CONFIG: 'org.apache.kafka.common.security.plain.PlainLoginModule required username="..." password="...";'
+        # Producer and Consumer specific settings might also be needed if SASL/SSL is used
+        # CONNECT_PRODUCER_SECURITY_PROTOCOL: SASL_SSL
+        # CONNECT_CONSUMER_SECURITY_PROTOCOL: SASL_SSL
+        # ... etc ...
+        CONNECT_REST_PORT: 8083
+        CONNECT_GROUP_ID: kafka-connect
+        CONNECT_VALUE_CONVERTER_SCHEMA_REGISTRY_URL: http://schema-registry:8081
+        CONNECT_CONFIG_STORAGE_TOPIC: ai.neovid.debezium.aachen.one_connect-configs
+        CONNECT_OFFSET_STORAGE_TOPIC: ai.neovid.debezium.aachen.one_connect-offsets
+        CONNECT_STATUS_STORAGE_TOPIC: ai.neovid.debezium.aachen.one_connect-status
+        CONNECT_KEY_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+        CONNECT_VALUE_CONVERTER: org.apache.kafka.connect.json.JsonConverter
+        CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
+        CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
+        # IMPORTANT: When creating the Debezium PostgreSQL connector configuration (via REST API),
+        # ensure you explicitly set the logical decoding plugin to 'pgoutput', which is built-in
+        # for PostgreSQL >= 10 and works with JsonConverter. Add this to your connector JSON:
+        # "plugin.name": "pgoutput"
+        # This avoids errors like "could not access file 'decoderbufs'".
+        CONNECT_REST_ADVERTISED_HOST_NAME: "kafka-connect"
+        CONNECT_LOG4J_APPENDER_STDOUT_LAYOUT_CONVERSIONPATTERN: "[%d] %p %X{connector.context}%m (%c:%L)%n"
+        CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "3" # Should match broker count for HA
+        CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "3" # Should match broker count for HA
+        CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "3" # Should match broker count for HA
+        CONNECT_PLUGIN_PATH: /usr/share/java,/usr/share/confluent-hub-components,/data/connect-jars
+      volumes:
+        # Ensure the host directory ./data exists and is writable by the user running kafka-connect (often UID/GID 1000).
+        # On the host, run: sudo chown -R 1000:1000 ./data (replace 1000:1000 if needed)
+        - ./data:/data # Assuming PWD is /root/docker
+      command:
+        - bash
+        - -c
+        - |
+          echo "Installing Connector"
+          confluent-hub install --no-prompt debezium/debezium-connector-postgresql:2.5.4
+          #
+          echo "Launching Kafka Connect worker"
+          /etc/confluent/docker/run &
+          #
+          sleep infinity
+
+  # kafka-ui:
+  #   image: provectus/kafka-ui:latest
+  #   container_name: kafka-ui
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     - kafka-1 # Depend on all brokers and ZK nodes
+  #     - kafka-2
+  #     - kafka-3
+  #     - zookeeper-1
+  #     - zookeeper-2
+  #     - zookeeper-3
+  #     - schema-registry
+  #     - kafka-connect
+  #   environment:
+  #     KAFKA_CLUSTERS_0_NAME: local-cluster
+  #     KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-1:19092,kafka-2:19093,kafka-3:19094 # Use internal listeners
+  #     KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181 # Use internal ZK ports
+  #     KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
+  #     KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: local-connect
+  #     KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
+
+
+volumes:
+  postgres_data:
