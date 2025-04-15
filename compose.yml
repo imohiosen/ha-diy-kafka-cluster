@@ -196,27 +196,31 @@ services:
           #
           sleep infinity
 
-  # kafka-ui:
-  #   image: provectus/kafka-ui:latest
-  #   container_name: kafka-ui
-  #   ports:
-  #     - "8080:8080"
-  #   depends_on:
-  #     - kafka-1 # Depend on all brokers and ZK nodes
-  #     - kafka-2
-  #     - kafka-3
-  #     - zookeeper-1
-  #     - zookeeper-2
-  #     - zookeeper-3
-  #     - schema-registry
-  #     - kafka-connect
-  #   environment:
-  #     KAFKA_CLUSTERS_0_NAME: local-cluster
-  #     KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-1:19092,kafka-2:19093,kafka-3:19094 # Use internal listeners
-  #     KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper-1:2181,zookeeper-2:2181,zookeeper-3:2181 # Use internal ZK ports
-  #     KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081
-  #     KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: local-connect
-  #     KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083
+  kafka-ui:
+    container_name: kafka-ui
+    image: provectuslabs/kafka-ui:latest
+    ports:
+      - 8080:8080
+    depends_on:
+      - kafka-1 # Adjusted dependency names
+      - kafka-2 # Adjusted dependency names
+      - kafka-3 # Adjusted dependency names
+      - schema-registry # Adjusted dependency name
+      # - schemaregistry1 # Removed, only one schema registry defined
+      - kafka-connect # Adjusted dependency name
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local # Renamed cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka-1:19092,kafka-2:19093,kafka-3:19094 # Adjusted bootstrap servers to match existing kafka services internal listeners
+      # KAFKA_CLUSTERS_0_METRICS_PORT: 9997 # Metrics not configured in brokers, commented out
+      KAFKA_CLUSTERS_0_SCHEMAREGISTRY: http://schema-registry:8081 # Adjusted schema registry URL
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_NAME: local-connect # Renamed connect cluster
+      KAFKA_CLUSTERS_0_KAFKACONNECT_0_ADDRESS: http://kafka-connect:8083 # Adjusted connect address
+      # KAFKA_CLUSTERS_1_NAME: secondLocal # Removed second cluster config as only one is defined
+      # KAFKA_CLUSTERS_1_BOOTSTRAPSERVERS: kafka1:29092
+      # KAFKA_CLUSTERS_1_METRICS_PORT: 9998
+      # KAFKA_CLUSTERS_1_SCHEMAREGISTRY: http://schemaregistry1:8085
+      DYNAMIC_CONFIG_ENABLED: 'true' # Kept as requested
+
 
 
 volumes:
